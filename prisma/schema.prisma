@@ -1,0 +1,361 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+  BLACKLISTED
+  PENDING
+}
+
+enum SupplierCategory {
+  GOODS
+  SERVICES
+  RAW_MATERIALS
+  TECHNOLOGY
+  LOGISTICS
+  OTHER
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+enum OrderPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  RENEWED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  REFUNDED
+  OVERDUE
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CREDIT_CARD
+  CASH
+  CHECK
+  ONLINE
+}
+
+model User {
+  id              String    @id @default(cuid())
+  name            String?
+  email           String    @unique
+  password        String?
+  image           String?
+  role            UserRole  @default(VIEWER)
+  isActive        Boolean   @default(true)
+  emailVerified   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  accounts        Account[]
+  sessions        Session[]
+  purchaseOrders  PurchaseOrder[]
+  contracts       Contract[]
+  payments        Payment[]
+  supplierRatings SupplierRating[]
+  activityLogs    ActivityLog[]
+
+  @@index([email])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Supplier {
+  id               String           @id @default(cuid())
+  name             String
+  code             String           @unique
+  category         SupplierCategory @default(GOODS)
+  status           SupplierStatus   @default(PENDING)
+  email            String?
+  phone            String?
+  website          String?
+  address          String?
+  city             String?
+  country          String?
+  taxNumber        String?
+  bankName         String?
+  bankAccount      String?
+  bankIban         String?
+  contactPerson    String?
+  contactEmail     String?
+  contactPhone     String?
+  description      String?
+  tags             String[]
+  logo             String?
+  avgRating        Float            @default(0)
+  totalOrders      Int              @default(0)
+  totalSpent       Float            @default(0)
+  onTimeDelivery   Float            @default(0)
+  qualityScore     Float            @default(0)
+  paymentTerms     Int              @default(30)
+  currency         String           @default("USD")
+  isPreferred      Boolean          @default(false)
+  notes            String?
+  deletedAt        DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  contacts         SupplierContact[]
+  documents        SupplierDocument[]
+  purchaseOrders   PurchaseOrder[]
+  contracts        Contract[]
+  payments         Payment[]
+  ratings          SupplierRating[]
+  activityLogs     ActivityLog[]
+
+  @@index([status])
+  @@index([category])
+  @@index([code])
+}
+
+model SupplierContact {
+  id         String   @id @default(cuid())
+  supplierId String
+  name       String
+  title      String?
+  email      String?
+  phone      String?
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+}
+
+model SupplierDocument {
+  id         String   @id @default(cuid())
+  supplierId String
+  name       String
+  type       String
+  url        String
+  size       Int?
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+}
+
+model SupplierRating {
+  id           String   @id @default(cuid())
+  supplierId   String
+  userId       String
+  overall      Float
+  quality      Float
+  delivery     Float
+  communication Float
+  pricing      Float
+  comment      String?
+  orderId      String?
+  createdAt    DateTime @default(now())
+
+  supplier     Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@index([supplierId])
+}
+
+model PurchaseOrder {
+  id             String        @id @default(cuid())
+  number         String        @unique
+  supplierId     String
+  createdById    String
+  status         OrderStatus   @default(DRAFT)
+  priority       OrderPriority @default(MEDIUM)
+  title          String
+  description    String?
+  currency       String        @default("USD")
+  subtotal       Float         @default(0)
+  taxAmount      Float         @default(0)
+  shippingAmount Float         @default(0)
+  discountAmount Float         @default(0)
+  totalAmount    Float         @default(0)
+  orderDate      DateTime      @default(now())
+  expectedDate   DateTime?
+  deliveredDate  DateTime?
+  approvedAt     DateTime?
+  approvedById   String?
+  notes          String?
+  shippingAddress String?
+  tags           String[]
+  deletedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  supplier       Supplier      @relation(fields: [supplierId], references: [id])
+  createdBy      User          @relation(fields: [createdById], references: [id])
+  items          OrderItem[]
+  payments       Payment[]
+  activityLogs   ActivityLog[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([number])
+}
+
+model OrderItem {
+  id          String        @id @default(cuid())
+  orderId     String
+  name        String
+  description String?
+  quantity    Float
+  unit        String        @default("pcs")
+  unitPrice   Float
+  totalPrice  Float
+  receivedQty Float         @default(0)
+  createdAt   DateTime      @default(now())
+
+  order       PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model Contract {
+  id              String         @id @default(cuid())
+  number          String         @unique
+  supplierId      String
+  createdById     String
+  title           String
+  description     String?
+  status          ContractStatus @default(DRAFT)
+  value           Float
+  currency        String         @default("USD")
+  startDate       DateTime
+  endDate         DateTime
+  renewalDate     DateTime?
+  noticePeriod    Int            @default(30)
+  autoRenew       Boolean        @default(false)
+  paymentTerms    String?
+  deliveryTerms   String?
+  penaltyClauses  String?
+  documentUrl     String?
+  tags            String[]
+  notes           String?
+  deletedAt       DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  supplier        Supplier       @relation(fields: [supplierId], references: [id])
+  createdBy       User           @relation(fields: [createdById], references: [id])
+  activityLogs    ActivityLog[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([number])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  reference      String        @unique
+  supplierId     String
+  orderId        String?
+  createdById    String
+  status         PaymentStatus @default(PENDING)
+  method         PaymentMethod @default(BANK_TRANSFER)
+  amount         Float
+  currency       String        @default("USD")
+  dueDate        DateTime
+  paidAt         DateTime?
+  invoiceNumber  String?
+  invoiceUrl     String?
+  notes          String?
+  failureReason  String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  supplier       Supplier      @relation(fields: [supplierId], references: [id])
+  order          PurchaseOrder? @relation(fields: [orderId], references: [id])
+  createdBy      User          @relation(fields: [createdById], references: [id])
+  activityLogs   ActivityLog[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([reference])
+}
+
+model ActivityLog {
+  id          String         @id @default(cuid())
+  userId      String?
+  supplierId  String?
+  orderId     String?
+  contractId  String?
+  paymentId   String?
+  action      String
+  description String
+  metadata    Json?
+  createdAt   DateTime       @default(now())
+
+  user        User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  supplier    Supplier?      @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  order       PurchaseOrder? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  contract    Contract?      @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  payment     Payment?       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+  @@index([orderId])
+  @@index([createdAt])
+}
